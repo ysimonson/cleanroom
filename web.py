@@ -65,12 +65,18 @@ def start_app():
 
         message = "\n".join(MESSAGE_BUFFER) + "\n"
         MESSAGE_BUFFER = []
+        removable = set()
 
         for subscriber in SUBSCRIBERS:
             try:
                 subscriber.write_message(message)
+            except tornado.iostream.StreamClosedError:
+                removable.add(subscriber)
             except:
                 logging.error("Error sending message", exc_info=True)
+
+        if len(removable):
+            SUBSCRIBERS.difference_update(removable)
 
     handlers = [
         (r"/", MainHandler),

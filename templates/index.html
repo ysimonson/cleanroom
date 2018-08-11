@@ -2,79 +2,68 @@
 <html>
 	<head>
 		<title>Demo</title>
+		<link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/epoch/0.8.4/css/epoch.min.css" />
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.17/d3.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/epoch/0.8.4/js/epoch.min.js"></script>
 	</head>
 	<body>
-		<canvas id="chart" width="100%" height="50%"></canvas>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.2/Chart.bundle.min.js"></script>
+		<div id="chart" style="height: 500px" class="epoch"></canvas>
 		<script>
-			// Color palette: https://www.colourlovers.com/palette/1930/cheer_up_emo_kid
-			var chart = new Chart(document.getElementById("chart"), {
-				type: "line",
-				data: {
-					datasets: [{
+			$(function() {
+				var chart = $("#chart").epoch({
+					type: "time.line",
+					axes: ["left", "right"],
+					range: {
+						left: [-1000, 1000],
+						right: [-1000, 1000]
+					},
+					data: [{
 						label: "Sensor 0",
-						borderColor: "rgb(85, 98, 112)",
-						fill: false,
-						data: []
+						values: [],
+						range: [-1000, 1000]
 					}, {
 						label: "Sensor 1",
-						fill: false,
-						borderColor: "rgb(78, 205, 196)",
-						data: []
+						values: [],
+						range: [-1000, 1000]
 					}, {
 						label: "Sensor 2",
-						borderColor: "rgb(199, 244, 100)",
-						fill: false,
-						data: []
+						values: [],
+						range: [-1000, 1000]
 					}, {
 						label: "Sensor 3",
-						borderColor: "rgb(255, 107, 107)",
-						fill: false,
-						data: []
+						values: [],
+						range: [-1000, 1000]
 					}, {
 						label: "Sensor 4",
-						borderColor: "rgb(196, 77, 88)",
-						fill: false,
-						data: []
+						values: [],
+						range: [-1000, 1000]
 					}]
-				},
-				options: {
-					elements: {
-						line: {
-							tension: 0 // disable bezier curves for performance
+				});
+
+				var socket = new WebSocket("ws://localhost:8888/data");
+
+				socket.onmessage = function(e) {
+					var messages = e.data.split("\n");
+
+					for(var i=0; i<messages.length; i++) {
+						if(messages[i] !== "") {
+							var message = JSON.parse(messages[i]);
+							var entry = [];
+
+							for(var j=0; j<message.data.length; j++) {
+								entry.push({
+									//time: message.timestamp,
+									time: new Date(),
+									y: message.data[j]
+								});
+							}
+
+							chart.push(entry);
 						}
 					}
 				}
 			});
-
-			var socket = new WebSocket("ws://localhost:8888/data");
-
-			socket.onmessage = function(e) {
-				var messages = e.data.split("\n");
-
-				for(var i=0; i<messages.length; i++) {
-					if(messages[i] !== "") {
-						var message = JSON.parse(messages[i]);
-
-						for(var j=0; j<message.data.length; j++) {
-							var dataset = chart.data.datasets[j];
-
-							console.log(message.timestamp, message.data[j]);
-
-							dataset.data.push({
-								x: message.timestamp,
-								y: message.data[j]
-							});
-
-							if(dataset.length > 100) {
-								dataset.shift();
-							}
-						}
-					}
-				}
-
-				chart.update();
-			}
 		</script>
 	</body>
 </html>
