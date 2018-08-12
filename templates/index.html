@@ -8,40 +8,41 @@
 		<script src="https://cdnjs.cloudflare.com/ajax/libs/epoch/0.8.4/js/epoch.min.js"></script>
 	</head>
 	<body>
-		<div id="chart" style="height: 500px" class="epoch"></canvas>
+		<h2>Raw Data</h2>
+		<div id="raw-chart" style="height: 250px" class="epoch"></div>
+		<h2>Delta Data</h2>
+		<div id="delta-chart" style="height: 250px" class="epoch"></div>
+		<h2>Theta Data</h2>
+		<div id="theta-chart" style="height: 250px" class="epoch"></div>
+		<h2>Alpha Data</h2>
+		<div id="alpha-chart" style="height: 250px" class="epoch"></div>
+		<h2>Beta Data</h2>
+		<div id="beta-chart" style="height: 250px" class="epoch"></div>
+
 		<script>
-			$(function() {
-				var chart = $("#chart").epoch({
+			const RHYTHMS = ["delta", "theta", "alpha", "beta"];
+			const BAND_RANGE = [-3, 3];
+			const BAND_SENSORS = ["Left Ear", "Left Forehead", "Right Forehead", "Right Ear"];
+
+			function chart(name, labels, range) {
+				var initialChartData = [];
+
+				for(var i=0; i<labels.length; i++) {
+					initialChartData.push({
+						label: labels[i],
+						values: [],
+						range: range
+					});
+				}
+
+				var chart = $("#" + name + "-chart").epoch({
 					type: "time.line",
 					axes: ["left", "right"],
-					range: {
-						left: [-1000, 1000],
-						right: [-1000, 1000]
-					},
-					data: [{
-						label: "Left Ear",
-						values: [],
-						range: [-1000, 1000]
-					}, {
-						label: "Left Forehead",
-						values: [],
-						range: [-1000, 1000]
-					}, {
-						label: "Right Forehead",
-						values: [],
-						range: [-1000, 1000]
-					}, {
-						label: "Right Ear",
-						values: [],
-						range: [-1000, 1000]
-					}, {
-						label: "Right Auxiliary",
-						values: [],
-						range: [-1000, 1000]
-					}]
+					range: { left: range, right: range },
+					data: initialChartData
 				});
 
-				var socket = new WebSocket("ws://localhost:8888/stream/raw");
+				var socket = new WebSocket("ws://localhost:8888/stream/" + name);
 
 				socket.onmessage = function(e) {
 					var messages = e.data.split("\n");
@@ -53,8 +54,7 @@
 
 							for(var j=0; j<message.data.length; j++) {
 								entry.push({
-									//time: message.timestamp,
-									time: new Date(),
+									time: message.timestamp,
 									y: message.data[j]
 								});
 							}
@@ -63,6 +63,14 @@
 						}
 					}
 				}
+			}
+
+			$(function() {
+				chart("raw", BAND_SENSORS.concat(["Right Auxiliary"]), [-1000, 1000]);
+				chart("delta", BAND_SENSORS, BAND_RANGE);
+				chart("theta", BAND_SENSORS, BAND_RANGE);
+				chart("alpha", BAND_SENSORS, BAND_RANGE);
+				chart("beta", BAND_SENSORS, BAND_RANGE);
 			});
 		</script>
 	</body>
