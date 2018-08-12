@@ -41,7 +41,7 @@
 					}]
 				});
 
-				var socket = new WebSocket("ws://localhost:8888/data");
+				var socket = new WebSocket("ws://localhost:8888/stream/raw");
 
 				socket.onmessage = function(e) {
 					var messages = e.data.split("\n");

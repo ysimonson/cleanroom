@@ -10,27 +10,73 @@ import threading
 import logging
 
 PUBLISH_INTERVAL = 100
-SUBSCRIBERS = set()
-MESSAGE_BUFFER = []
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
         self.render("index.html")
 
-class DataHandler(tornado.websocket.WebSocketHandler):
-    listeners = set()
+class StreamHandler(tornado.websocket.WebSocketHandler):
+    @classmethod
+    def message_queue(cls):
+        if not hasattr(cls, "_message_queue"):
+            cls._message_queue = []
+        return cls._message_queue
+
+    @classmethod
+    def listeners(cls):
+        if not hasattr(cls, "_listeners"):
+            cls._listeners = set()
+        return cls._listeners
 
     def open(self):
-        SUBSCRIBERS.add(self)
+        self.listeners().add(self)
 
     def on_close(self):
-        SUBSCRIBERS.remove(self)
+        try:
+            self.listeners().remove(self)
+        except:
+            # Listener may have already been removed
+            pass
+
+    @classmethod
+    def enqueue_message(cls, message):
+        cls.message_queue().append(message)
+
+    @classmethod
+    def flush_message_queue(cls):
+        queue = cls.message_queue()
+
+        if not len(queue):
+            return
+
+        removable = set()
+        message = "\n".join(queue) + "\n"
+        queue.clear()
+
+        for listener in cls.listeners():
+            try:
+                listener.write_message(message)
+            except tornado.iostream.StreamClosedError:
+                # `on_close` should capture most dropped listeners, but not
+                # all. This will remove any remaining dropped listeners.
+                removable.add(listener)
+            except:
+                logging.error("Error sending message", exc_info=True)
+
+        if len(removable):
+            cls.listeners().difference_update(removable)
+
+class RawStreamHandler(StreamHandler):
+    pass
+
+class RhythmStreamHandler(StreamHandler):
+    pass
 
 def start_eeg_thread(options):
     def handle_packet(data, timestamps):
         for i in range(12):
             j = json.dumps(dict(data=data[:, i].tolist(), timestamp=timestamps[i]))
-            MESSAGE_BUFFER.append(j)
+            RawStreamHandler.enqueue_message(j)
 
     def thread_runner():
         muse = Muse(address=options.address, callback=handle_packet,
@@ -57,41 +103,19 @@ def start_eeg_thread(options):
     t.start()
 
 def start_app(options):
-    def periodic():
-        global MESSAGE_BUFFER
-
-        if not MESSAGE_BUFFER:
-            return
-
-        message = "\n".join(MESSAGE_BUFFER) + "\n"
-        MESSAGE_BUFFER = []
-        removable = set()
-
-        for subscriber in SUBSCRIBERS:
-            try:
-                subscriber.write_message(message)
-            except tornado.iostream.StreamClosedError:
-                removable.add(subscriber)
-            except:
-                logging.error("Error sending message", exc_info=True)
-
-        if len(removable):
-            SUBSCRIBERS.difference_update(removable)
-
     handlers = [
         (r"/", MainHandler),
-        (r"/data", DataHandler),
+        (r"/stream/raw", RawStreamHandler),
+        (r"/stream/rhythm", RhythmStreamHandler),
     ]
 
     app = tornado.web.Application(handlers, template_path=os.path.join(os.path.dirname(__file__), "templates"))
     app.listen(options.port)
-
-    loop = tornado.ioloop.IOLoop.current()
     
-    callback = tornado.ioloop.PeriodicCallback(periodic, PUBLISH_INTERVAL)
+    callback = tornado.ioloop.PeriodicCallback(RawStreamHandler.flush_message_queue, PUBLISH_INTERVAL)
     callback.start()
     
-    loop.start()
+    tornado.ioloop.IOLoop.current().start()
 
 def main():
     parser = OptionParser()
@@ -108,7 +132,7 @@ def main():
                       dest="interface", type='string', default=None,
                       help="The interface to use, `hci0` for gatt or a com port for bgapi.")
     parser.add_option("-p", "--port",
-                      dest="port", type='int', default=None,
+                      dest="port", type='int', default=8888,
                       help="Port to run the HTTP server on. Defaults to `8888`.")
 
     (options, _) = parser.parse_args()
