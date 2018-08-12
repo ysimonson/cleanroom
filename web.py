@@ -56,7 +56,7 @@ def start_eeg_thread(options):
     t.daemon = True
     t.start()
 
-def start_app():
+def start_app(options):
     def periodic():
         global MESSAGE_BUFFER
 
@@ -84,7 +84,7 @@ def start_app():
     ]
 
     app = tornado.web.Application(handlers, template_path=os.path.join(os.path.dirname(__file__), "templates"))
-    app.listen(8888)
+    app.listen(options.port)
 
     loop = tornado.ioloop.IOLoop.current()
     
@@ -97,21 +97,24 @@ def main():
     parser = OptionParser()
     parser.add_option("-a", "--address",
                       dest="address", type='string', default=None,
-                      help="device mac adress.")
+                      help="Device mac adress.")
     parser.add_option("-n", "--name",
                       dest="name", type='string', default=None,
-                      help="name of the device.")
+                      help="Name of the device.")
     parser.add_option("-b", "--backend",
                       dest="backend", type='string', default="auto",
-                      help="pygatt backend to use. can be auto, gatt or bgapi")
+                      help="pygatt backend to use. Can be `auto`, `gatt` or `bgapi`. Defaults to `auto`.")
     parser.add_option("-i", "--interface",
                       dest="interface", type='string', default=None,
-                      help="The interface to use, 'hci0' for gatt or a com port for bgapi")
+                      help="The interface to use, `hci0` for gatt or a com port for bgapi.")
+    parser.add_option("-p", "--port",
+                      dest="port", type='int', default=None,
+                      help="Port to run the HTTP server on. Defaults to `8888`.")
 
     (options, _) = parser.parse_args()
 
     start_eeg_thread(options)
-    start_app()
+    start_app(options)
 
 if __name__ == "__main__":
     main()
