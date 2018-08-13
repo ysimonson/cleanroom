@@ -28,6 +28,18 @@ The UI looks like this, but uhh...bigger:
 6) Wait for the server to connect to your Muse headset.
 7) Navigate to `http://localhost:8888`.
 
+## Platform-specific issues
+
+Mac:
+
+* You may need to manually apply [this fix](https://github.com/peplin/pygatt/issues/159).
+
+Linux:
+
+* If you get an operation not permitted error when starting the server, you need to run this:
+
+    sudo setcap 'cap_net_raw,cap_net_admin+eip' `which hcitool`
+
 ## Similar projects
 
 1) [Muse LSL](https://github.com/alexandrebarachant/muse-lsl)
