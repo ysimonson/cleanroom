@@ -1,3 +1,9 @@
+"""
+Low-level Muse headset interaction.
+
+This module comes from https://github.com/NeuroTechX/bci-workshop/
+"""
+
 import bitstring
 import pygatt
 import numpy as np
