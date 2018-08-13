@@ -69,20 +69,15 @@ class Muse():
         for device in list_devices:
             print(device)
 
-            # Some devices may return as `None` on linux
-            if device is None:
-                continue
-
             if name:
                 if device['name'] == name:
                     print('Found device %s : %s' % (device['name'],
                                                     device['address']))
                     return device['address']
-
-            elif 'Muse' in device['name']:
-                    print('Found device %s : %s' % (device['name'],
-                                                    device['address']))
-                    return device['address']
+            elif device['name'] is not None and 'Muse' in device['name']:
+                print('Found device %s : %s' % (device['name'],
+                                                device['address']))
+                return device['address']
 
         return None
 
