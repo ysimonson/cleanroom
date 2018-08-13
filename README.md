@@ -30,11 +30,6 @@ The UI looks like this, but uhh...bigger:
 
 ## Similar projects
 
-Before you try this project, I encourage you to try other tooling first, which
-is likely much more mature / less buggy! Cleanroom is more applicable if you're
-on a less-commonly-used platform, or if other tooling is not working well for
-you. This is not a complete index, but some places to look to get started:
-
 1) [Muse LSL](https://github.com/alexandrebarachant/muse-lsl)
 2) [LSL](https://github.com/sccn/labstreaminglayer)
 3) [BCI Workshop code](https://github.com/NeuroTechX/bci-workshop/), which
