@@ -120,8 +120,11 @@ def background_worker(options):
     last_timestamp = None
 
     def send_samples_to_message_queue(buffer, stream_handler):
-        # Proxies samples from a buffer to a message queue
-        for sample in buffer.values:
+        # Proxies samples from a buffer to a message queue.
+        # Note that the buffer is shallowly copied hre to prevent a race
+        # condition wherein the buffer is mutated while iterating through it
+        # here.
+        for sample in list(buffer.values):
             if last_timestamp is None or last_timestamp < sample.timestamp:
                 stream_handler.enqueue_message(sample.to_json())
 
