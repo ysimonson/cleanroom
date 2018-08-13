@@ -11,18 +11,32 @@ import logging
 SLEEP_TIME = 0.1
 
 class MainHandler(tornado.web.RequestHandler):
+    """The main request handler - just renders a template"""
+
     def get(self):
         self.render("index.html")
 
 class StreamHandler(tornado.websocket.WebSocketHandler):
+    """Abstract class for handlers that stream sample data via websockets."""
+
     @classmethod
     def message_queue(cls):
+        """
+        Gets a queue of messages that are waiting to be flushed to the
+        websocket
+        """
+
         if not hasattr(cls, "_message_queue"):
             cls._message_queue = []
         return cls._message_queue
 
     @classmethod
     def listeners(cls):
+        """
+        Gets a set of request handler instances currently subscribed to
+        messages
+        """
+
         if not hasattr(cls, "_listeners"):
             cls._listeners = set()
         return cls._listeners
@@ -39,10 +53,18 @@ class StreamHandler(tornado.websocket.WebSocketHandler):
 
     @classmethod
     def enqueue_message(cls, message):
+        """
+        Adds a new message
+
+        message: A string of the message contents
+        """
+
         cls.message_queue().append(message)
 
     @classmethod
     def flush_message_queue(cls):
+        """Flushes any enqueued messages"""
+
         queue = cls.message_queue()
 
         if not len(queue):
@@ -81,6 +103,7 @@ class BetaStreamHandler(StreamHandler):
     pass
 
 def flush_message_queues():
+    """Flushes all message queues"""
     RawStreamHandler.flush_message_queue()
     DeltaStreamHandler.flush_message_queue()
     ThetaStreamHandler.flush_message_queue()
@@ -88,13 +111,23 @@ def flush_message_queues():
     BetaStreamHandler.flush_message_queue()
 
 def background_worker(options):
+    """
+    The background thread target.
+
+    options: The app's optparse options.
+    """
+
     last_timestamp = None
 
     def send_samples_to_message_queue(buffer, stream_handler):
+        # Proxies samples from a buffer to a message queue
         for sample in buffer.values:
             if last_timestamp is None or last_timestamp < sample.timestamp:
                 stream_handler.enqueue_message(sample.to_json())
 
+    # This will:
+    # 1) Discover Muse headsets
+    # 2) Fill raw EEG data into the extractor's buffer
     extractor = Extractor(address=options.address, backend=options.backend, interface=options.interface, name=options.name)
     extractor.start()
 
@@ -102,14 +135,18 @@ def background_worker(options):
 
     try:
         while True:
+            # Transform the raw EEG data to the frequency band data
             transformer.transform(extractor.buffer.values)
 
+            # Send off the data
             send_samples_to_message_queue(extractor.buffer, RawStreamHandler)
             send_samples_to_message_queue(transformer.delta_buffer, DeltaStreamHandler)
             send_samples_to_message_queue(transformer.theta_buffer, ThetaStreamHandler)
             send_samples_to_message_queue(transformer.alpha_buffer, AlphaStreamHandler)
             send_samples_to_message_queue(transformer.beta_buffer, BetaStreamHandler)
 
+            # Update the last timestamp, which prevents us from repeatedly
+            # sending the same data
             if len(extractor.buffer.values) > 0:
                 last_timestamp = extractor.buffer.values[-1].timestamp
 
@@ -138,10 +175,12 @@ def main():
 
     (options, _) = parser.parse_args()
 
+    # Start the background worker thread, which will read/transform EEG data
     t = threading.Thread(target=background_worker, args=(options,))
     t.daemon = True
     t.start()
 
+    # Start the application
     handlers = [
         (r"/", MainHandler),
         (r"/stream/raw", RawStreamHandler),

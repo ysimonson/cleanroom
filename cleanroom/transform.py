@@ -1,3 +1,8 @@
+"""
+Module for computing frequency bands from raw EEG data. All of the interesting
+math here comes from https://github.com/NeuroTechX/bci-workshop
+"""
+
 import os
 import numpy as np
 from .models import Sample, SampleBuffer
@@ -89,12 +94,17 @@ def _nextpow2(i):
     return n
 
 class Transformer:
-    """
-    Transforms raw EEG data to frequency band data. All of the
-    interesting math is from https://github.com/NeuroTechX/bci-workshop
-    """
+    """Transforms raw EEG data to frequency band data"""
 
     def __init__(self, maximum_age_seconds=DEFAULT_MAXIMUM_AGE_SECONDS):
+        """
+        Creates a new transformer.
+
+        maximum_age_seconds: The oldest entry to be maintained in the buffer.
+        Anything older will be dropped the next time samples are added to the
+        buffer.
+        """
+
         self.delta_buffer = SampleBuffer(maximum_age_seconds=maximum_age_seconds)
         self.theta_buffer = SampleBuffer(maximum_age_seconds=maximum_age_seconds)
         self.alpha_buffer = SampleBuffer(maximum_age_seconds=maximum_age_seconds)
@@ -104,6 +114,8 @@ class Transformer:
         self._filter_state = None
 
     def transform(self, samples):
+        """Transforms samples of raw EEG data to frequency band samples."""
+
         # Remove any samples we've already processed
         if self._last_timestamp is not None:
             samples = [s for s in samples if s.timestamp > self._last_timestamp]
