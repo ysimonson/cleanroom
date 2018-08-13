@@ -65,8 +65,14 @@ class Muse():
     def find_muse_address(self, name=None):
         """look for ble device with a muse in the name"""
         list_devices = self.adapter.scan(timeout=10.5)
+
         for device in list_devices:
             print(device)
+
+            # Some devices may return as `None` on linux
+            if device is None:
+                continue
+
             if name:
                 if device['name'] == name:
                     print('Found device %s : %s' % (device['name'],
