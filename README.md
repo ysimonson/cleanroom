@@ -36,9 +36,7 @@ Mac:
 
 Linux:
 
-* If you get an operation not permitted error when starting the server, you need to run this:
-
-    sudo setcap 'cap_net_raw,cap_net_admin+eip' `which hcitool`
+* If you get an operation not permitted error when starting the server, you need to run this: ``sudo setcap 'cap_net_raw,cap_net_admin+eip' `which hcitool` ``
 
 ## Similar projects
 
