@@ -4,9 +4,11 @@ Cleanroom allows you to visualize your brainwaves in a webapp in real-time.
 Unlike most tools, this avoids
 [lsl](https://github.com/sccn/labstreaminglayer). This means fewer
 dependencies and things that can break. In particular, it's helpful on
-Raspberry Pi where lsl support (as of August 2018) is iffy. It may also be
-helpful as a learning exercise, or if you're just generally having trouble
-with other tooling for reading Muse headset data, since it's much simpler.
+Raspberry Pi where lsl support (as of August 2018) is iffy. The trade-off
+is that, unlike lsl, this not battle-tested and should not be used in a
+production setting.
+
+
 The UI looks like this, but uhh...bigger:
 
 <p align="center">
