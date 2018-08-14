@@ -8,7 +8,6 @@ Raspberry Pi where lsl support (as of August 2018) is iffy. The trade-off
 is that, unlike lsl, this not battle-tested and should not be used in a
 production setting.
 
-
 The UI looks like this, but uhh...bigger:
 
 <p align="center">
