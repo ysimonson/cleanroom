@@ -124,7 +124,7 @@ def background_worker(options):
         # Note that the buffer is shallowly copied hre to prevent a race
         # condition wherein the buffer is mutated while iterating through it
         # here.
-        for sample in list(buffer.values):
+        for sample in buffer:
             if last_timestamp is None or last_timestamp < sample.timestamp:
                 stream_handler.enqueue_message(sample.to_json())
 
@@ -138,20 +138,22 @@ def background_worker(options):
 
     try:
         while True:
-            # Transform the raw EEG data to the frequency band data
-            transformer.transform(extractor.buffer.values)
+            buffer = extractor.buffer.copy()
 
-            # Send off the data
-            send_samples_to_message_queue(extractor.buffer, RawStreamHandler)
-            send_samples_to_message_queue(transformer.delta_buffer, DeltaStreamHandler)
-            send_samples_to_message_queue(transformer.theta_buffer, ThetaStreamHandler)
-            send_samples_to_message_queue(transformer.alpha_buffer, AlphaStreamHandler)
-            send_samples_to_message_queue(transformer.beta_buffer, BetaStreamHandler)
+            if len(buffer) > 0:
+                # Transform the raw EEG data to the frequency band data
+                transformer.transform(buffer)
 
-            # Update the last timestamp, which prevents us from repeatedly
-            # sending the same data
-            if len(extractor.buffer.values) > 0:
-                last_timestamp = extractor.buffer.values[-1].timestamp
+                # Send off the data
+                send_samples_to_message_queue(buffer, RawStreamHandler)
+                send_samples_to_message_queue(transformer.delta_buffer.copy(), DeltaStreamHandler)
+                send_samples_to_message_queue(transformer.theta_buffer.copy(), ThetaStreamHandler)
+                send_samples_to_message_queue(transformer.alpha_buffer.copy(), AlphaStreamHandler)
+                send_samples_to_message_queue(transformer.beta_buffer.copy(), BetaStreamHandler)
+
+                # Update the last timestamp, which prevents us from repeatedly
+                # sending the same data
+                last_timestamp = buffer[-1].timestamp
 
             sleep(SLEEP_TIME)
     except:

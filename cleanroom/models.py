@@ -1,6 +1,7 @@
 """Models"""
 
 import json
+import threading
 import collections
 
 class Sample:
@@ -22,8 +23,8 @@ class Sample:
 
 class SampleBuffer:
     """
-    A buffer of multiple samples, with automatic garbage collection of older
-    entries.
+    A thread-safe buffer of multiple samples, with automatic garbage
+    collection of older entries.
     """
 
     def __init__(self, maximum_age_seconds=None):
@@ -35,15 +36,21 @@ class SampleBuffer:
         buffer.
         """
 
-        self.values = collections.deque()
+        self._values = collections.deque()
+        self._lock = threading.Lock()
         self.maximum_age_seconds = maximum_age_seconds
+
+    def copy(self):
+        with self._lock:
+            return list(self._values)
 
     def extend(self, *samples):
         """Adds one or more samples to the buffer"""
 
-        # Remove any old items
-        if self.maximum_age_seconds is not None:
-            while len(self.values) > 0 and self.values[0].timestamp < samples[-1].timestamp - self.maximum_age_seconds:
-                self.values.popleft()
+        with self._lock:
+            # Remove any old items
+            if self.maximum_age_seconds is not None:
+                while len(self._values) > 0 and self._values[0].timestamp < samples[-1].timestamp - self.maximum_age_seconds:
+                    self._values.popleft()
 
-        self.values.extend(samples)
+            self._values.extend(samples)
