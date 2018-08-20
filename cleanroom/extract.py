@@ -8,23 +8,26 @@ def _target(queue, address=None, backend=None, interface=None, name=None):
         for i in range(12):
             queue.put(Sample(timestamps[i], data[:, i]))
 
-    muse = Muse(
-        address=address,
-        callback=add_to_queue,
-        backend=backend,
-        interface=interface,
-        name=name
-    )
-
-    muse.connect()
-    muse.start()
-
     try:
-        while True:
-            time.sleep(1)
-    finally:
-        muse.stop()
-        muse.disconnect()
+        muse = Muse(
+            address=address,
+            callback=add_to_queue,
+            backend=backend,
+            interface=interface,
+            name=name
+        )
+
+        muse.connect()
+        muse.start()
+
+        try:
+            while True:
+                time.sleep(1)
+        finally:
+            muse.stop()
+            muse.disconnect()
+    except Exception as e:
+        queue.put(e)
 
 def get_raw(**kwargs):
     q = Queue()
@@ -33,4 +36,9 @@ def get_raw(**kwargs):
     p.start()
 
     while True:
-        yield q.get()
+        item = q.get()
+
+        if isinstance(item, Exception):
+            raise item
+        else:
+            yield item
