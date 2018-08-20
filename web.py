@@ -1,4 +1,4 @@
-from cleanroom import Extractor, Transformer
+import cleanroom
 from time import sleep
 from optparse import OptionParser
 import os
@@ -7,8 +7,7 @@ import tornado.web
 import tornado.websocket
 import threading
 import logging
-
-SLEEP_TIME = 0.1
+import itertools
 
 class MainHandler(tornado.web.RequestHandler):
     """The main request handler - just renders a template"""
@@ -117,8 +116,6 @@ def background_worker(options):
     options: The app's optparse options.
     """
 
-    last_timestamp = None
-
     def send_samples_to_message_queue(buffer, stream_handler):
         # Proxies samples from a buffer to a message queue.
         # Note that the buffer is shallowly copied hre to prevent a race
@@ -128,37 +125,26 @@ def background_worker(options):
             if last_timestamp is None or last_timestamp < sample.timestamp:
                 stream_handler.enqueue_message(sample.to_json())
 
-    # This will:
-    # 1) Discover Muse headsets
-    # 2) Fill raw EEG data into the extractor's buffer
-    extractor = Extractor(address=options.address, backend=options.backend, interface=options.interface, name=options.name)
-    extractor.start()
+    # This will fork a process that will discover Muse headsets and yield raw
+    # EEG data. We then pass it into `itertools.tee` to create two copies of
+    # the raw data - one to display, one to process into brain wave data.
+    raw_data_1, raw_data_2 = itertools.tee(cleanroom.get_raw(
+        address=options.address,
+        backend=options.backend,
+        interface=options.interface,
+        name=options.name
+    ))
 
-    transformer = Transformer()
+    # Get brain wave data
+    wave_data = cleanroom.get_waves(raw_data_1)
 
-    try:
-        while True:
-            buffer = extractor.buffer.copy()
-
-            if len(buffer) > 0:
-                # Transform the raw EEG data to the frequency band data
-                transformer.transform(buffer)
-
-                # Send off the data
-                send_samples_to_message_queue(buffer, RawStreamHandler)
-                send_samples_to_message_queue(transformer.delta_buffer.copy(), DeltaStreamHandler)
-                send_samples_to_message_queue(transformer.theta_buffer.copy(), ThetaStreamHandler)
-                send_samples_to_message_queue(transformer.alpha_buffer.copy(), AlphaStreamHandler)
-                send_samples_to_message_queue(transformer.beta_buffer.copy(), BetaStreamHandler)
-
-                # Update the last timestamp, which prevents us from repeatedly
-                # sending the same data
-                last_timestamp = buffer[-1].timestamp
-
-            sleep(SLEEP_TIME)
-    except:
-        extractor.stop()
-        raise
+    # Send off data
+    for raw, (delta, theta, alpha, beta) in zip(raw_data_2, wave_data):
+        RawStreamHandler.enqueue_message(raw.to_json())
+        DeltaStreamHandler.enqueue_message(delta.to_json())
+        ThetaStreamHandler.enqueue_message(theta.to_json())
+        AlphaStreamHandler.enqueue_message(alpha.to_json())
+        BetaStreamHandler.enqueue_message(beta.to_json())
 
 def main():
     parser = OptionParser()
@@ -198,7 +184,7 @@ def main():
     app = tornado.web.Application(handlers, template_path=os.path.join(os.path.dirname(__file__), "templates"))
     app.listen(options.port)
     
-    callback = tornado.ioloop.PeriodicCallback(flush_message_queues, SLEEP_TIME * 1000)
+    callback = tornado.ioloop.PeriodicCallback(flush_message_queues, 100)
     callback.start()
     
     tornado.ioloop.IOLoop.current().start()

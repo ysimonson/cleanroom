@@ -1,43 +1,36 @@
 from .muse import Muse
-from .models import Sample, SampleBuffer
+from .models import Sample
+import time
+from multiprocessing import Process, Queue
 
-DEFAULT_MAXIMUM_AGE_SECONDS = 1
+def _target(queue, address=None, backend=None, interface=None, name=None):
+    def add_to_queue(data, timestamps):
+        for i in range(12):
+            queue.put(Sample(timestamps[i], data[:, i]))
 
-class Extractor:
-    """Extracts data from the Muse headset into a buffer of samples"""
+    muse = Muse(
+        address=address,
+        callback=add_to_queue,
+        backend=backend,
+        interface=interface,
+        name=name
+    )
 
-    def __init__(self, address=None, backend=None, interface=None, name=None, maximum_age_seconds=DEFAULT_MAXIMUM_AGE_SECONDS):
-        """
-        Creates a new extractor.
+    muse.connect()
+    muse.start()
 
-        address: An optional string specifying the MAC address of the Muse headset for quicker discovery.
-        backend: The pygatt backend to use. Can be `auto`, `gatt`, or `bgapi`. Defaults to `auto`.
-        interface: The pygatt interface to use. `hci0` for gatt or a COM port for bgapi.
-        name: The name of the Muse headset, if multiple are within discovery range.
-        maximum_age_seconds: The oldest entry to be maintained in the buffer.
-        Anything older will be dropped the next time samples are added to the
-        buffer.
-        """
+    try:
+        while True:
+            time.sleep(1)
+    finally:
+        muse.stop()
+        muse.disconnect()
 
-        self.buffer = SampleBuffer(maximum_age_seconds=maximum_age_seconds)
+def get_raw(**kwargs):
+    q = Queue()
+    p = Process(target=_target, args=(q,), kwargs=kwargs)
+    p.daemon = True
+    p.start()
 
-        self.muse = Muse(
-            address=address,
-            callback=self._handle_packet,
-            backend=backend,
-            interface=interface,
-            name=name
-        )
-
-    def start(self):
-        """Starts listening"""
-        self.muse.connect()
-        self.muse.start()
-
-    def stop(self):
-        """Stops listening"""
-        self.muse.stop()
-        self.muse.disconnect()
-
-    def _handle_packet(self, data, timestamps):
-        self.buffer.extend(*[Sample(timestamps[i], data[:, i]) for i in range(12)])
+    while True:
+        yield q.get()

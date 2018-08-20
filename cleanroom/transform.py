@@ -3,15 +3,14 @@ Module for computing frequency bands from raw EEG data. All of the interesting
 math here comes from https://github.com/NeuroTechX/bci-workshop
 """
 
-import os
 import numpy as np
-from .models import Sample, SampleBuffer
+from .models import Sample
 from scipy.signal import butter, lfilter, lfilter_zi
+import itertools
 
 NOTCH_B, NOTCH_A = butter(4, np.array([55, 65]) / (256 / 2), btype='bandstop')
 CHANNEL_INDICES = [0, 1, 2, 3]
 SAMPLING_FREQUENCY = 256
-DEFAULT_MAXIMUM_AGE_SECONDS = 1
 
 def _update_buffer(data_buffer, new_data, notch=False, filter_state=None):
     """
@@ -93,46 +92,37 @@ def _nextpow2(i):
         n *= 2
     return n
 
-class Transformer:
-    """Transforms raw EEG data to frequency band data"""
+def get_waves(raw_data, chunk_size=SAMPLING_FREQUENCY):
+    last_timestamp = None
+    eeg_buffer = np.zeros((int(SAMPLING_FREQUENCY), len(CHANNEL_INDICES)))
+    filter_state = None
 
-    def __init__(self, maximum_age_seconds=DEFAULT_MAXIMUM_AGE_SECONDS):
-        """
-        Creates a new transformer.
+    while True:
+        samples = list(itertools.islice(raw_data, chunk_size))
 
-        maximum_age_seconds: The oldest entry to be maintained in the buffer.
-        Anything older will be dropped the next time samples are added to the
-        buffer.
-        """
-
-        self.delta_buffer = SampleBuffer(maximum_age_seconds=maximum_age_seconds)
-        self.theta_buffer = SampleBuffer(maximum_age_seconds=maximum_age_seconds)
-        self.alpha_buffer = SampleBuffer(maximum_age_seconds=maximum_age_seconds)
-        self.beta_buffer = SampleBuffer(maximum_age_seconds=maximum_age_seconds)
-        self._last_timestamp = None
-        self._eeg_buffer = np.zeros((int(SAMPLING_FREQUENCY), len(CHANNEL_INDICES)))
-        self._filter_state = None
-
-    def transform(self, samples):
-        """Transforms samples of raw EEG data to frequency band samples."""
+        if not samples:
+            break
 
         # Remove any samples we've already processed
-        if self._last_timestamp is not None:
-            samples = [s for s in samples if s.timestamp > self._last_timestamp]
+        if last_timestamp is not None:
+            samples = [s for s in samples if s.timestamp > last_timestamp]
 
-        if samples:
-            timestamps = np.array([sample.timestamp for sample in samples])
-            ch_data = np.array([sample.data[:4] for sample in samples])
-            eeg_buffer, filter_state = _update_buffer(self._eeg_buffer, ch_data, notch=True, filter_state=self._filter_state)
-            self._eeg_buffer = eeg_buffer
-            self._filter_state = filter_state
+        if not samples:
+            continue
 
-            # calculate feature vector, then split it up to its respective bands
-            feat_vector = _compute_feature_vector(eeg_buffer)
-            delta_vector, theta_vector, alpha_vector, beta_vector = np.split(feat_vector, 4)
+        timestamps = np.array([s.timestamp for s in samples])
+        ch_data = np.array([s.data[:4] for s in samples])
+        eeg_buffer, filter_state = _update_buffer(eeg_buffer, ch_data, notch=True, filter_state=filter_state)
 
-            self._last_timestamp = samples[-1].timestamp
-            self.delta_buffer.extend(Sample(self._last_timestamp, delta_vector))
-            self.theta_buffer.extend(Sample(self._last_timestamp, theta_vector))
-            self.alpha_buffer.extend(Sample(self._last_timestamp, alpha_vector))
-            self.beta_buffer.extend(Sample(self._last_timestamp, beta_vector))
+        last_timestamp = samples[-1].timestamp
+
+        # calculate feature vector, then split it up to its respective bands
+        feat_vector = _compute_feature_vector(eeg_buffer)
+        delta_vector, theta_vector, alpha_vector, beta_vector = np.split(feat_vector, 4)
+
+        yield (
+            Sample(last_timestamp, delta_vector),
+            Sample(last_timestamp, theta_vector),
+            Sample(last_timestamp, alpha_vector),
+            Sample(last_timestamp, beta_vector),
+        )
