@@ -29,14 +29,14 @@ def _target(queue, address=None, backend=None, interface=None, name=None):
     except Exception as e:
         queue.put(e)
 
-def get_raw(**kwargs):
+def get_raw(timeout=15, **kwargs):
     q = Queue()
     p = Process(target=_target, args=(q,), kwargs=kwargs)
     p.daemon = True
     p.start()
 
     while True:
-        item = q.get()
+        item = q.get(timeout=timeout)
 
         if isinstance(item, Exception):
             raise item
